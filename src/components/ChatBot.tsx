@@ -5,7 +5,7 @@ import MessageBubble from "./MessageBubble";
 import ChatInput from "./ChatInput";
 import ApiKeyInput from "./ApiKeyInput";
 import { Bot } from "lucide-react";
-import { LLMService, LLMMessage } from "@/services/llmService";
+import { LLMService, LLMMessage, LLMProvider } from "@/services/llmService";
 import { toast } from "sonner";
 
 interface Message {
@@ -31,13 +31,14 @@ const ChatBot = () => {
 
   useEffect(() => {
     // Check if API key exists in localStorage
-    const savedApiKey = localStorage.getItem('openai_api_key');
-    if (savedApiKey) {
-      setLlmService(new LLMService(savedApiKey));
+    const savedApiKey = localStorage.getItem('llm_api_key');
+    const savedProvider = localStorage.getItem('llm_provider') as LLMProvider;
+    if (savedApiKey && savedProvider) {
+      setLlmService(new LLMService(savedApiKey, savedProvider));
       setMessages([
         {
           id: "1",
-          text: "Hello! I'm your AI assistant powered by OpenAI. How can I help you today?",
+          text: `Hello! I'm your AI assistant powered by ${savedProvider}. How can I help you today?`,
           sender: "bot",
           timestamp: new Date(),
         },
@@ -45,12 +46,12 @@ const ChatBot = () => {
     }
   }, []);
 
-  const handleApiKeySubmit = (apiKey: string) => {
-    setLlmService(new LLMService(apiKey));
+  const handleApiKeySubmit = (apiKey: string, provider: LLMProvider) => {
+    setLlmService(new LLMService(apiKey, provider));
     setMessages([
       {
         id: "1",
-        text: "Hello! I'm your AI assistant powered by OpenAI. How can I help you today?",
+        text: `Hello! I'm your AI assistant powered by ${provider}. How can I help you today?`,
         sender: "bot",
         timestamp: new Date(),
       },
@@ -136,7 +137,7 @@ const ChatBot = () => {
           </div>
           <div>
             <h3 className="font-semibold text-slate-800">AI Assistant</h3>
-            <p className="text-sm text-slate-500">Powered by OpenAI</p>
+            <p className="text-sm text-slate-500">Powered by AI</p>
           </div>
         </div>
       </div>
