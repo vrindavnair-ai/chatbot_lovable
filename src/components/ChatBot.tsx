@@ -3,7 +3,10 @@ import { useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import MessageBubble from "./MessageBubble";
 import ChatInput from "./ChatInput";
-import { Bot, User } from "lucide-react";
+import ApiKeyInput from "./ApiKeyInput";
+import { Bot } from "lucide-react";
+import { LLMService, LLMMessage } from "@/services/llmService";
+import { toast } from "sonner";
 
 interface Message {
   id: string;
@@ -13,15 +16,9 @@ interface Message {
 }
 
 const ChatBot = () => {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: "1",
-      text: "Hello! I'm your AI assistant. How can I help you today?",
-      sender: "bot",
-      timestamp: new Date(),
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
+  const [llmService, setLlmService] = useState<LLMService | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -32,31 +29,81 @@ const ChatBot = () => {
     scrollToBottom();
   }, [messages]);
 
-  const simulateBotResponse = (userMessage: string) => {
+  useEffect(() => {
+    // Check if API key exists in localStorage
+    const savedApiKey = localStorage.getItem('openai_api_key');
+    if (savedApiKey) {
+      setLlmService(new LLMService(savedApiKey));
+      setMessages([
+        {
+          id: "1",
+          text: "Hello! I'm your AI assistant powered by OpenAI. How can I help you today?",
+          sender: "bot",
+          timestamp: new Date(),
+        },
+      ]);
+    }
+  }, []);
+
+  const handleApiKeySubmit = (apiKey: string) => {
+    setLlmService(new LLMService(apiKey));
+    setMessages([
+      {
+        id: "1",
+        text: "Hello! I'm your AI assistant powered by OpenAI. How can I help you today?",
+        sender: "bot",
+        timestamp: new Date(),
+      },
+    ]);
+  };
+
+  const generateBotResponse = async (userMessage: string) => {
+    if (!llmService) {
+      toast.error("API key not configured");
+      return;
+    }
+
     setIsTyping(true);
-    
-    setTimeout(() => {
-      const responses = [
-        "That's an interesting question! Let me think about that.",
-        "I understand what you're asking. Here's my perspective on that topic.",
-        "Great question! I'd be happy to help you with that.",
-        "Thanks for sharing that with me. Let me provide some insights.",
-        "I see what you mean. That's definitely worth discussing further.",
-        "That's a thoughtful question. Here's what I think about it.",
+
+    try {
+      // Convert messages to LLM format
+      const llmMessages: LLMMessage[] = [
+        {
+          role: 'system',
+          content: 'You are a helpful AI assistant. Be concise and friendly in your responses.'
+        },
+        ...messages.slice(-10).map(msg => ({
+          role: msg.sender === 'user' ? 'user' as const : 'assistant' as const,
+          content: msg.text
+        })),
+        {
+          role: 'user',
+          content: userMessage
+        }
       ];
-      
-      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-      
+
+      const response = await llmService.generateResponse(llmMessages);
+
+      if (response.error) {
+        toast.error(response.error);
+        setIsTyping(false);
+        return;
+      }
+
       const botMessage: Message = {
         id: Date.now().toString() + "-bot",
-        text: randomResponse,
+        text: response.message,
         sender: "bot",
         timestamp: new Date(),
       };
-      
+
       setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Error generating response:', error);
+      toast.error("Failed to generate response. Please try again.");
+    } finally {
       setIsTyping(false);
-    }, 1500);
+    }
   };
 
   const handleSendMessage = (text: string) => {
@@ -68,8 +115,16 @@ const ChatBot = () => {
     };
     
     setMessages(prev => [...prev, userMessage]);
-    simulateBotResponse(text);
+    generateBotResponse(text);
   };
+
+  if (!llmService) {
+    return (
+      <div className="w-full max-w-4xl mx-auto flex items-center justify-center h-[600px]">
+        <ApiKeyInput onApiKeySubmit={handleApiKeySubmit} />
+      </div>
+    );
+  }
 
   return (
     <Card className="w-full max-w-4xl mx-auto h-[600px] flex flex-col bg-white shadow-xl">
@@ -81,7 +136,7 @@ const ChatBot = () => {
           </div>
           <div>
             <h3 className="font-semibold text-slate-800">AI Assistant</h3>
-            <p className="text-sm text-slate-500">Online</p>
+            <p className="text-sm text-slate-500">Powered by OpenAI</p>
           </div>
         </div>
       </div>
